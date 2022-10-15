@@ -85,7 +85,8 @@ def load_bp(admin_route, base_route, plugin_dir='.'):
             visible_writeups = (db.session.query(Submissions)
                                 .join(WriteUpChallenges, Submissions.challenge_id == WriteUpChallenges.id))
         else:
-            solves_ids = [s.challenge_id for s in user.team.solves] if user.team else []
+            solves_ids = [s.challenge_id for s in user.team.solves] if user.team \
+                else [s.challenge_id for s in user.solves]
             visible_writeups = (db.session.query(Submissions)
                                 .join(WriteUpChallenges, Submissions.challenge_id == WriteUpChallenges.id)
                                 .filter(WriteUpChallenges.for_id.in_(solves_ids) |
@@ -119,9 +120,12 @@ def load_bp(admin_route, base_route, plugin_dir='.'):
         if not challenge or not challenge.writeup_challenge:
             return redirect(url_for('writeups.writeups'))
 
+        solves_ids = [s.challenge_id for s in user.team.solves] if user.team \
+            else [s.challenge_id for s in user.solves]
+
         if (user.type == 'admin' or
                 not challenge.writeup_challenge.solve_req or
-                challenge.id in (s.challenge_id for s in user.team.solves) or
+                challenge.id in solves_ids or
                 writeup.user.id == user.id):
             content = cmarkgfm.github_flavored_markdown_to_html(writeup.provided, options=cmarkgfmOptions.CMARK_OPT_SAFE)
             if writeup.user.id == user.id or user.type == 'admin':
@@ -164,7 +168,8 @@ def load_bp(admin_route, base_route, plugin_dir='.'):
                      .filter(Submissions.user_id == user.id)
                      .one_or_none())
 
-        if not writeup:
+        # TEAMS ARE ENABLED
+        if user.team is not None and not writeup:
             team_wu_solve = (db.session.query(Solves)
                                .filter(Solves.challenge_id == challenge.writeup_challenge.id)
                                .filter(Solves.team_id == user.team.id)
@@ -187,6 +192,28 @@ def load_bp(admin_route, base_route, plugin_dir='.'):
                 )
             db.session.add(writeup)
             db.session.flush()
+        # TEAMS ARE NOT ENABLED
+        elif user.team is None and not writeup:
+            wu_solve = (db.session.query(Solves)
+                        .filter(Solves.challenge_id == challenge.writeup_challenge.id)
+                        .one_or_none())
+            if wu_solve:
+                writeup = Duplicate(
+                    challenge=challenge.writeup_challenge,
+                    user=user,
+                    ip=request.remote_addr,
+                    provided='',
+                )
+            else:
+                writeup = Solves(
+                    challenge=challenge.writeup_challenge,
+                    user=user,
+                    ip=request.remote_addr,
+                    provided='',
+                )
+            db.session.add(writeup)
+            db.session.flush()
+
 
         if request.method == 'POST':
             writeup.provided = request.form.to_dict().get('content', '')
