@@ -127,7 +127,7 @@ def load_bp(admin_route, base_route, plugin_dir='.'):
                 not challenge.writeup_challenge.solve_req or
                 challenge.id in solves_ids or
                 writeup.user.id == user.id):
-            content = cmarkgfm.github_flavored_markdown_to_html(writeup.provided, options=cmarkgfmOptions.CMARK_OPT_SAFE)
+            content = cmarkgfm.github_flavored_markdown_to_html(writeup.provided)
             if writeup.user.id == user.id or user.type == 'admin':
                 editable = True
         else:
